@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>রিয়েল টাইম চ্যাট অ্যাপ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">U</div>
+                    <div class="username" id="username">ব্যবহারকারী</div>
+                </div>
+                <button class="create-group-btn" onclick="showCreateGroupModal()">
+                    নতুন গ্রুপ তৈরি করুন
+                </button>
+            </div>
+            <div class="chat-list" id="chatList">
+                <!-- Chat items will be populated here -->
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <div id="welcomeScreen" class="welcome-screen">
+                <h2>স্বাগতম চ্যাট অ্যাপে!</h2>
+                <p>একটি চ্যাট বা গ্রুপ সিলেক্ট করুন কথা বলা শুরু করতে</p>
+            </div>
+
+            <div id="chatScreen" style="display: none; height: 100%; flex-direction: column;">
+                <div class="chat-header">
+                    <div class="chat-title" id="chatTitle">চ্যাট</div>
+                    <div class="chat-actions" id="chatActions">
+                        <!-- Action buttons will be added dynamically -->
+                    </div>
+                </div>
+
+                <div class="messages-container" id="messagesContainer">
+                    <!-- Messages will be populated here -->
+                </div>
+
+                <div class="input-container">
+                    <input 
+                        type="text" 
+                        class="message-input" 
+                        id="messageInput" 
+                        placeholder="টাইপ করুন..." 
+                        onkeypress="handleKeyPress(event)"
+                    />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Group Modal -->
+    <div id="createGroupModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('createGroupModal')">&times;</span>
+            <h2>নতুন গ্রুপ তৈরি করুন</h2>
+            <form id="createGroupForm">
+                <div class="form-group">
+                    <label for="groupName">গ্রুপের নাম:</label>
+                    <input type="text" id="groupName" required>
+                </div>
+                <div class="form-group">
+                    <label for="groupMembers">সদস্য যোগ করুন (কমা দিয়ে আলাদা করুন):</label>
+                    <input type="text" id="groupMembers" placeholder="উদাহরণ: জন, জেন, বব">
+                </div>
+                <button type="submit" class="btn">গ্রুপ তৈরি করুন</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rename Group Modal -->
+    <div id="renameGroupModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('renameGroupModal')">&times;</span>
+            <h2>গ্রুপের নাম পরিবর্তন করুন</h2>
+            <form id="renameGroupForm">
+                <div class="form-group">
+                    <label for="newGroupName">নতুন নাম:</label>
+                    <input type="text" id="newGroupName" required>
+                </div>
+                <button type="submit" class="btn">নাম পরিবর্তন করুন</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Member Modal -->
+    <div id="addMemberModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addMemberModal')">&times;</span>
+            <h2>সদস্য যোগ করুন</h2>
+            <form id="addMemberForm">
+                <div class="form-group">
+                    <label for="newMemberName">সদস্যের নাম:</label>
+                    <input type="text" id="newMemberName" required>
+                </div>
+                <button type="submit" class="btn">সদস্য যোগ করুন</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manage Group Modal -->
+    <div id="manageGroupModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('manageGroupModal')">&times;</span>
+            <h2>গ্রুপ পরিচালনা করুন</h2>
+            <div class="form-group">
+                <label>বর্তমান সদস্যরা:</label>
+                <div class="member-list" id="memberList">
+                    <!-- Members will be populated here -->
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-danger" onclick="deleteGroup()">গ্রুপ ডিলিট করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Application state
+        let currentUser = 'আপনি';
+        let currentChat = null;
+        let chats = {};
+        let chatCounter = 0;
+
+        // Initialize app with some sample data
+        function initializeApp() {
+            // Create some sample chats
+            createChat('সাহিদ', 'single');
+            createChat('আয়েশা', 'single');
+            
+            // Add some sample messages
+            addMessage(1, 'সাহিদ', 'হ্যালো! কেমন আছেন?', false);
+            addMessage(1, currentUser, 'ভালো আছি, ধন্যবাদ!', true);
+            
+            renderChatList();
+        }
+
+        // Create a new chat
+        function createChat(name, type, members = []) {
+            chatCounter++;
+            const chatId = chatCounter;
+            
+            chats[chatId] = {
+                id: chatId,
+                name: name,
+                type: type, // 'single' or 'group'
+                members: type === 'group' ? [currentUser, ...members] : [currentUser, name],
+                messages: []
+            };
+            
+            return chatId;
+        }
+
+        // Add message to chat
+        function addMessage(chatId, sender, message, isCurrentUser = false) {
+            if (!chats[chatId]) return;
+            
+            const messageObj = {
+                id: Date.now(),
+                sender: sender,
+                message: message,
+                timestamp: new Date(),
+                isCurrentUser: isCurrentUser
+            };
+            
+            chats[chatId].messages.push(messageObj);
+            
+            // Update UI if this is the current chat
+            if (currentChat === chatId) {
+                renderMessages();
+            }
+        }
+
+        // Render chat list
+        function renderChatList() {
+            const chatList = document.getElementById('chatList');
+            chatList.innerHTML = '';
+            
+            Object.values(chats).forEach(chat => {
+                const chatItem = document.createElement('div');
+                chatItem.className = chat-item ${currentChat === chat.id ? 'active' : ''};
+                chatItem.onclick = () => selectChat(chat.id);
+                
+                chatItem.innerHTML = `
+                    <div class="chat-name">${chat.name}</div>
+                    <div class="chat-type">${chat.type === 'group' ? গ্রুপ (${chat.members.length} সদস্য) : 'ব্যক্তিগত চ্যাট'}</div>
+                `;
+                
+                chatList.appendChild(chatItem);
+            });
+        }
+
+        // Select chat
+        function selectChat(chatId) {
+            currentChat = chatId;
+            const chat = chats[chatId];
+            
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('chatScreen').style.display = 'flex';
+            
+            document.getElementById('chatTitle').textContent = chat.name;
+            
+            // Update chat actions
+            const chatActions = document.getElementById('chatActions');
+            chatActions.innerHTML = '';
+            
+            if (chat.type === 'group') {
+                chatActions.innerHTML = `
+                    <button class="action-btn" onclick="showAddMemberModal()">সদস্য যোগ করুন</button>
+                    <button class="action-btn" onclick="showRenameGroupModal()">নাম পরিবর্তন</button>
+                    <button class="action-btn" onclick="showManageGroupModal()">পরিচালনা করুন</button>
+                `;
+            }
+            
+            renderMessages();
+            renderChatList();
+        }
+
+        // Render messages
+        function renderMessages() {
+            const messagesContainer = document.getElementById('messagesContainer');
+            const chat = chats[currentChat];
+            
+            if (!chat) return;
+            
+            messagesContainer.innerHTML = '';
+            
+            chat.messages.forEach(message => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = message ${message.isCurrentUser ? 'sent' : 'received'};
+                
+                let messageHeader = '';
+                if (chat.type === 'group' && !message.isCurrentUser) {
+                    messageHeader = <div class="message-header">${message.sender}</div>;
+                }
+                
+                messageDiv.innerHTML = `
+                    ${messageHeader}
+                    <div>${message.message}</div>
+                    <div class="message-time">${message.timestamp.toLocaleTimeString('bn-BD', {hour: '2-digit', minute: '2-digit'})}</div>
+                `;
+                
+                messagesContainer.appendChild(messageDiv);
+            });
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Handle key press for message input
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Send message
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message || !currentChat) return;
+            
+            addMessage(currentChat, currentUser, message, true);
+            messageInput.value = '';
+            
+            // Simulate reply after a delay (for demo purposes)
+            setTimeout(() => {
+                const chat = chats[currentChat];
+                if (chat.type === 'single') {
+                    const otherMember = chat.members.find(m => m !== currentUser);
+                    const replies = [
+                        'ধন্যবাদ আপনার বার্তার জন্য!',
+                        'আপনি কি আরো কিছু জানতে চান?',
+                        'চমৎকার!',
+                        'বুঝেছি, আর কিছু?'
+                    ];
+                    const randomReply = replies[Math.floor(Math.random() * replies.length)];
+                    addMessage(currentChat, otherMember, randomReply, false);
+                }
+            }, 1000 + Math.random() * 2000);
+        }
+
+        // Modal functions
+        function showCreateGroupModal() {
+            document.getElementById('createGroupModal').style.display = 'block';
+        }
+
+        function showRenameGroupModal() {
+            if (!currentChat || chats[currentChat].type !== 'group') return;
+            document.getElementById('newGroupName').value = chats[currentChat].name;
+            document.getElementById('renameGroupModal').style.display = 'block';
+        }
+
+        function showAddMemberModal() {
+            if (!currentChat || chats[currentChat].type !== 'group') return;
+            document.getElementById('addMemberModal').style.display = 'block';
+        }
+
+        function showManageGroupModal() {
+            if (!currentChat || chats[currentChat].type !== 'group') return;
+            
+            const memberList = document.getElementById('memberList');
+            const chat = chats[currentChat];
+            
+            memberList.innerHTML = '';
+            chat.members.forEach(member => {
+                if (member !== currentUser) {
+                    const memberDiv = document.createElement('div');
+                    memberDiv.className = 'member-item';
+                    memberDiv.innerHTML = `
+                        <span>${member}</span>
+                        <button class="remove-member-btn" onclick="removeMember('${member}')">সরান</button>
+                    `;
+                    memberList.appendChild(memberDiv);
+                }
+            });
+            
+            document.getElementById('manageGroupModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Form handlers
+        document.getElementById('createGroupForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const groupName = document.getElementById('groupName').value.trim();
+            const membersInput = document.getElementById('groupMembers').value.trim();
+            
+            if (!groupName) return;
+            
+            const members = membersInput ? membersInput.split(',').map(m => m.trim()) : [];
+            
+            const chatId = createChat(groupName, 'group', members);
+            addMessage(chatId, 'সিস্টেম', ${groupName} গ্রুপ তৈরি হয়েছে!, false);
+            
+            renderChatList();
+            selectChat(chatId);
+            closeModal('createGroupModal');
+            
+            // Reset form
+            document.getElementById('createGroupForm').reset();
+        };
+
+        document.getElementById('renameGroupForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const newName = document.getElementById('newGroupName').value.trim();
+            
+            if (!newName || !currentChat) return;
+            
+            const oldName = chats[currentChat].name;
+            chats[currentChat].name = newName;
+            
+            addMessage(currentChat, 'সিস্টেম', গ্রুপের নাম "${oldName}" থেকে "${newName}" তে পরিবর্তন হয়েছে, false);
+            
+            renderChatList();
+            selectChat(currentChat);
+            closeModal('renameGroupModal');
+        };
+
+        document.getElementById('addMemberForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const newMemberName = document.getElementById('newMemberName').value.trim();
+            
+            if (!newMemberName || !currentChat) return;
+            
+            const chat = chats[currentChat];
+            if (!chat.members.includes(newMemberName)) {
+                chat.members.push(newMemberName);
+                addMessage(currentChat, 'সিস্টেম', ${newMemberName} গ্রুপে যোগ দিয়েছেন, false);
+            }
+            
+            renderChatList();
+            closeModal('addMemberModal');
+            document.getElementById('addMemberForm').reset();
+        };
+
+        function removeMember(memberName) {
+            if (!currentChat) return;
+            
+            const chat = chats[currentChat];
+            chat.members = chat.members.filter(m => m !== memberName);
+            
+            addMessage(currentChat, 'সিস্টেম', ${memberName} গ্রুপ থেকে বের হয়েছেন, false);
+            
+            showManageGroupModal(); // Refresh the modal
+            renderChatList();
+        }
+
+        function deleteGroup() {
+            if (!currentChat || chats[currentChat].type !== 'group') return;
+            
+            if (confirm('আপনি কি নিশ্চিত যে এই গ্রুপটি ডিলিট করতে চান?')) {
+                delete chats[currentChat];
+                currentChat = null;
+                
+                document.getElementById('welcomeScreen').style.display = 'flex';
+                document.getElementById('chatScreen').style.display = 'none';
+                
+                renderChatList();
+                closeModal('manageGroupModal');
+            }
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const modals = document.getElementsByClassName('modal');
+            for (let modal of modals) {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            }
+        }
+        // Initialize the app
+        initializeApp();
+    </script>
+</body>
+</html>
